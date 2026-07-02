@@ -17,8 +17,8 @@ version: 1.0.0
 date-released: "2026-06-30"
 license: MIT
 type: software
-repository-code: "https://github.com/<YOUR-USERNAME>/GeneGCN"
-url: "https://github.com/<YOUR-USERNAME>/GeneGCN"
+repository-code: "https://github.com/NorahAwn/GeneGCN"
+url: "https://github.com/NorahAwn/GeneGCN"
 keywords:
   - graph-neural-network
   - graph-convolutional-network
@@ -32,7 +32,7 @@ keywords:
   - cell-type-specific
 identifiers:
   - type: doi
-    value: "10.5281/zenodo.XXXXXXX"
+    value: "10.5281/zenodo.21132225"
     description: Zenodo archive of this software (concept DOI)
 
 # Author order: Norah Saeed Awn and Mengyuan Zhao are co-first authors.
