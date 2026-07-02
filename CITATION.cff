@@ -1,0 +1,78 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite both the software itself and the
+  associated paper (see preferred-citation below).
+title: >-
+  GeneGCN: A Graph Convolutional Network for Cell-Type-Specific Gene
+  Perturbation Analysis in Autism Spectrum Disorder
+abstract: >-
+  GeneGCN is a graph convolutional autoencoder that learns a reconstruction
+  model of the healthy cortical transcriptome on a cell-cell similarity graph
+  and scores genes by per-gene reconstruction-error deviation (RED) between
+  patient and control cells. Applied to the Velmeshev et al. (2019) autism
+  cortex snRNA-seq cohort, GeneGCN recovers cell-type-specific gene
+  perturbations and surfaces SFARI ASD-risk genes across 17 cortical cell
+  types.
+version: 1.0.0
+date-released: "2026-06-30"
+license: MIT
+type: software
+repository-code: "https://github.com/<YOUR-USERNAME>/GeneGCN"
+url: "https://github.com/<YOUR-USERNAME>/GeneGCN"
+keywords:
+  - graph-neural-network
+  - graph-convolutional-network
+  - single-cell-rna-seq
+  - snrna-seq
+  - autism-spectrum-disorder
+  - differential-expression
+  - bioinformatics
+  - pytorch-geometric
+  - sfari-gene
+  - cell-type-specific
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.XXXXXXX"
+    description: Zenodo archive of this software (concept DOI)
+
+# Author order: Norah Saeed Awn and Mengyuan Zhao are co-first authors.
+# Corresponding authors: Norah Saeed Awn, Mengyuan Zhao, Jijun Tang.
+authors:
+  - family-names: "Saeed Awn"
+    given-names: "Norah"
+    affiliation: "Shenzhen Institutes of Advanced Technology, Chinese Academy of Sciences, Shenzhen, China; University of Chinese Academy of Sciences, Beijing 100190, China"
+    email: "noorasaeed.91@gmail.com"
+  - family-names: "Zhao"
+    given-names: "Mengyuan"
+    affiliation: "Shenzhen Institutes of Advanced Technology, Chinese Academy of Sciences, Shenzhen, China; University of Chinese Academy of Sciences, Beijing 100190, China"
+    email: "my.zhao@siat.ac.cn"
+  - family-names: "Ba Mahel"
+    given-names: "Mansoor S.M."
+    affiliation: "College of Intelligence and Computing, Tianjin University, Tianjin, China"
+  - family-names: "Bamahel"
+    given-names: "Abdulaziz S."
+    affiliation: "Basic Medical College, Jiamusi University, Jiamusi 154007, Heilongjiang, China"
+  - family-names: "Tang"
+    given-names: "Jijun"
+    affiliation: "Shenzhen Institutes of Advanced Technology, Chinese Academy of Sciences, Shenzhen, China"
+    email: "jj.tang@siat.ac.cn"
+
+preferred-citation:
+  type: article
+  title: >-
+    GeneGCN: A Graph Convolutional Network Uncovers Novel Cell-Type-Specific
+    Gene Perturbations and Biomarkers in Autism Spectrum Disorder
+  authors:
+    - family-names: "Saeed Awn"
+      given-names: "Norah"
+    - family-names: "Zhao"
+      given-names: "Mengyuan"
+    - family-names: "Ba Mahel"
+      given-names: "Mansoor S.M."
+    - family-names: "Bamahel"
+      given-names: "Abdulaziz S."
+    - family-names: "Tang"
+      given-names: "Jijun"
+  journal: "Bioinformatics"
+  year: 2026
+  notes: "Submitted"

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# Virtual envs
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Data (too big for git; see data/README.md)
+data/*.h5ad
+data/*.h5
+data/*.tsv
+data/*.csv
+!data/README.md
+SFARI-Gene_genes.csv
+
+# Outputs
+cellgcn_results/
+ablation_results/
+filtered_genes_audit.csv
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Build / dist
+build/
+dist/
