@@ -100,17 +100,6 @@ python cells_as_nodes.py --celltypes all --seeds 5
 
 The cell-graph script automatically merges its results with the prior ablation summary (if present) and prints a paired Wilcoxon signed-rank table for every method comparison.
 
-Example output (from our run on the Velmeshev cohort):
-
-```
-Paired Wilcoxon signed-rank, CELLS_AS_NODES vs others at top-250:
-  CAN vs FULL          : W=5.0   p=0.0018  mean_CAN=4.81%  mean_FULL=2.17%   wins=14/15
-  CAN vs NO_GRAPH      : W=44.5  p=0.38    mean_CAN=4.81%  mean_NO_GRAPH=4.60%   wins=9/15
-  CAN vs MEAN_POOL     : W=2.0   p=0.0002  mean_CAN=4.81%  mean_MEAN_POOL=2.33%  wins=14/15
-  CAN vs NO_FILTER     : W=0.0   p=0.0007  mean_CAN=4.81%  mean_NO_FILTER=1.03%  wins=15/15
-  CAN vs WILCOXON_FAIR : W=28.0  p=0.12    mean_CAN=4.81%  mean_WILCOXON=4.32%   wins=9/15
-```
-
 ---
 
 ## Repository structure
