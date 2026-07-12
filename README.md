@@ -26,7 +26,7 @@ Applied to the Velmeshev *et al.* (2019) autism cortex cohort, GeneGCN:
 ## Installation
 
 ```bash
-git clone https://github.com/<your-username>/GeneGCN.git
+git clone https://github.com/NorahAwn/GeneGCN.git
 cd GeneGCN
 pip install -r requirements.txt
 ```
