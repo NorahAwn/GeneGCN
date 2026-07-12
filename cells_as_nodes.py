@@ -338,6 +338,7 @@ def load_sfari():
 # MAIN
 # --------------------------------------------------------------------------- #
 def main():
+    global MAX_CELLS, HIDDEN_DIM, OUT_DIR
     ap = argparse.ArgumentParser(description="GeneGCN cell-graph pipeline.")
     ap.add_argument("--celltypes", default="ALL_CELLS,IN-SST,Oligodendrocytes,L2_3",
                     help="comma-separated, or 'all' for every cell type in the data")
@@ -352,7 +353,7 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
-    global MAX_CELLS, HIDDEN_DIM, OUT_DIR
+    
     MAX_CELLS  = args.max_cells
     HIDDEN_DIM = args.hidden
     OUT_DIR    = args.out_dir
