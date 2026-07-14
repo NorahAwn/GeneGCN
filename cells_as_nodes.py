@@ -125,12 +125,25 @@ def attach_celltype_from_meta(adata, meta, group_label):
 def select_highly_variable_genes(top_n, ctrl_ad, pat_ad):
     """Combine controls + patients, run HVG selection, return both groups subset."""
     combined = ctrl_ad.concatenate(pat_ad, batch_key="group", batch_categories=["control", "patient"])
-    sc.pp.highly_variable_genes(combined, n_top_genes=top_n, flavor="seurat", inplace=True)
-    hvg_mask = combined.var["highly_variable"].values
-    hvg_genes = combined.var_names[hvg_mask].tolist()
-    ctrl_ad = ctrl_ad[:, hvg_genes].copy()
-    pat_ad  = pat_ad[:, hvg_genes].copy()
-    return ctrl_ad, pat_ad, hvg_genes
+    gene_means = np.mean(combined_X, axis=0)
+    gene_vars = np.var(combined_X, axis=0)
+    dispersion = gene_vars / (gene_means + 1e-8)
+    top_indices = np.argsort(dispersion)[-top_n_genes:]
+    # Order-preserving HVG gene list
+    hvg_genes = [gene_names[i] for i in np.sort(top_indices)]
+
+    # Intersect with patient genes WHILE PRESERVING ORDER (the original used a
+    # set() here, which silently scrambled label-to-column alignment).
+    patient_gene_set = set(adata_patient.var_names)
+    common_genes = [g for g in hvg_genes if g in patient_gene_set]
+
+    adata_control_hvg = adata_control[:, common_genes]
+    adata_patient_hvg = adata_patient[:, common_genes]
+
+    assert list(adata_control_hvg.var_names) == list(adata_patient_hvg.var_names), \
+        "Gene names do not match between control and patient datasets."
+    return adata_control_hvg, adata_patient_hvg, common_genes
+   
 
 
 # --------------------------------------------------------------------------- #
