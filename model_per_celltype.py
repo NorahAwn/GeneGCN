@@ -159,21 +159,6 @@ def select_highly_variable_genes(top_n_genes, adata_control, adata_patient, meth
         dispersion = gene_vars / (gene_means + 1e-8)
         top_indices = np.argsort(dispersion)[-top_n_genes:]
 
-    elif method == "seurat_v3":
-        gene_means = np.mean(combined_X, axis=0)
-        gene_vars = np.var(combined_X, axis=0)
-        log_means = np.log1p(gene_means)
-        log_vars = np.log1p(gene_vars)
-        loess_fit = sm.nonparametric.lowess(log_vars, log_means, frac=0.3, return_sorted=False)
-        residuals = log_vars - loess_fit
-        top_indices = np.argsort(residuals)[-top_n_genes:]
-
-    elif method == "correlation":
-        corr_matrix = np.corrcoef(combined_X.T)
-        np.fill_diagonal(corr_matrix, 0)
-        mean_corr = np.mean(np.abs(corr_matrix), axis=0)
-        top_indices = np.argsort(mean_corr)[-top_n_genes:]
-
     else:
         raise ValueError(f"Unknown HVG selection method: {method}")
 
