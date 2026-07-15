@@ -1,178 +1,181 @@
 # GeneGCN
 
-**A graph convolutional network for cell-type-specific gene perturbation analysis in single-nucleus transcriptomes of autism spectrum disorder.**
+**A graph convolutional network that uncovers cell-type-specific gene perturbations and biomarkers in autism spectrum disorder (ASD).**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C.svg)](https://pytorch.org/)
-[![PyG](https://img.shields.io/badge/PyG-2.3+-3C2179.svg)](https://pytorch-geometric.readthedocs.io/)
+GeneGCN is a graph-convolutional autoencoder built on a **cell–cell similarity graph** (cells as nodes) rather than the usual gene–gene co-expression graph (genes as nodes). The model is trained **only on healthy control cells**; the per-gene deviation in reconstruction error between patient and control cells provides the ranking statistic. Applied to the Velmeshev ASD cortex cohort across 17 cell types plus a pseudo-bulk (`ALL_CELLS`) context, GeneGCN surfaces interpretable, cell-type-specific gene lists that are enriched for SFARI ASD-risk genes.
+
+This repository contains the source code, the gene-symbol filter, and the benchmark drivers used to produce the per-cell-type ranked gene lists.
 
 ---
 
-## Overview
+## Key idea
 
-GeneGCN trains a graph convolutional autoencoder on a **cell–cell similarity graph** built from healthy control cells, then scores genes by the per-gene reconstruction-error deviation (RED) of patient cells against the control-derived manifold. The method is designed for single-nucleus RNA-seq (snRNA-seq) cohorts where the question is "*which genes are perturbed in patients, in which cell types?*"
+Conventional differential-expression tools (Scanpy `rank_genes_groups`, Seurat `FindMarkers`, MAST) score one gene at a time and ignore the manifold structure that separates patient from control cells. Recent GCN approaches to single-cell data usually place **genes at the nodes** with gene–gene co-expression as edges — but a co-expression graph built from healthy cells encodes only normal regulatory relationships and carries no patient-specific signal for message-passing to amplify.
 
-Applied to the Velmeshev *et al.* (2019) autism cortex cohort, GeneGCN:
+GeneGCN instead places **cells at the nodes**:
 
-- Outperforms a gene-node graph variant of the same model in 14/15 cell types (paired Wilcoxon *p* = 1.8 × 10⁻³).
-- Matches the best simple baselines (MLP autoencoder, Wilcoxon rank-sum) on average across cell types and outperforms them in 7 of 18 specific cell-type contexts, including oligodendrocytes, somatostatin interneurons, and astrocyte subpopulations.
-- Recovers a coherent oligodendrocyte myelination signature, an inflammatory chemokine axis in glia, and immediate-early gene activation in excitatory layers, with several SFARI ASD-risk genes appearing at the top of cell-type-specific rankings.
+1. Select the top 3,000 highly variable genes (HVGs) after gene-symbol filtering.
+2. Fit a 50-component PCA **on control cells only**, then project both control and patient cells into that PC space.
+3. Build a symmetric k-nearest-neighbor graph (k = 15) with weights `w_ij = exp(-d_ij / median(d))` in PC space.
+4. Train a two-layer GCN autoencoder to reconstruct per-cell gene-expression vectors — **on the control graph only**.
+5. Score each gene by the **reconstruction-error deviation (RED)**:
 
-![Pipeline overview](figures/fig1_overview.png)
+   ```
+   RED_g = e_g(patient) - e_g(control)
+   ```
+
+Genes are ranked by `|RED_g|` (magnitude of perturbation). The direction (Up/Down) is reported separately from raw `log1p(CPM)` expression (sign of `log2FC`), independent of the reconstruction error. Because patient cells are projected through the control-fitted PCA, their displacement from the healthy manifold becomes the disease signal that message-passing propagates.
+
+---
+
+## Model architecture
+
+Two-layer graph convolutional autoencoder (PyTorch Geometric):
+
+```
+h(1) = ReLU( GCNConv1(X, A) )
+X̂   = GCNConv2( Dropout(h(1)), A )
+```
+
+- `X ∈ R^{n × g}` — cells-by-genes matrix (n cells, g = 3,000 genes)
+- `A` — weighted symmetric kNN adjacency
+- hidden dimension = 64, dropout = 0.0
+- Adam optimizer, learning rate 1e-3, 300 epochs, MSE reconstruction loss
+- trained on the control graph only
+
+---
+
+## Repository contents
+
+| File | Description |
+|---|---|
+| `gene_filter.py` | Curated gene-symbol filter. Removes clone-library identifiers (RP-, CTD-, AC-, AL-), accession-only loci, mitochondrial transcripts, small/structural RNAs, and pseudogenes, plus optional sex-marker removal (XIST + Y-linked). Includes a whitelist for canonical genes that incidentally match a pattern (e.g. TP53, FOXP1) and an auditing report. |
+| `model_per_celltype.py` | The per-cell-type GeneGCN pipeline: HVG selection → co-expression graph → GCN self-reconstruction with K-fold CV → per-gene RED scoring, looped over each cell type. Contains the shared config block and the data-loading / HVG / filter helpers imported by the other scripts. |
+| `cells_as_nodes.py` | The cell-graph (cells-as-nodes) GeneGCN model (`CellGCN`) and its benchmark runner. 2 GB GPU-friendly with cell subsampling. |
+| `run_ablations.py` | Benchmark driver for the five ablation methods, computing SFARI overlap per method and cell type. |
+
+---
+
+## Ablation methods
+
+`run_ablations.py` benchmarks five alternatives on the same upstream pipeline (same filtered gene universe, same HVGs, same cell partition):
+
+| Method (code name) | Description |
+|---|---|
+| `FULL` | Gene-node GCN + 64-quantile pooling + filter (the "GeneGCN gene-graph" variant) |
+| `NO_GRAPH` | MLP autoencoder, identical input/hidden/output shape (3000→64→3000), no graph structure |
+| `MEAN_POOL` | Gene-node GCN with mean/std pooling instead of quantile pooling |
+| `NO_FILTER` | Gene-node GCN without the gene-symbol filter |
+| `WILCOXON_FAIR` | Scanpy `rank_genes_groups` (method=`wilcoxon`) on the same filtered HVG universe |
+
+Five random seeds are used per method per cell type. All statistical comparisons use the paired Wilcoxon signed-rank test on per-cell-type seed-mean SFARI percentages (n = 18 cell-type contexts).
+
+---
+
+## Validation
+
+Ranked gene lists are evaluated by enrichment for the **1,277 ASD-risk genes in the SFARI Gene database** at five depths (top-50, 100, 150, 200, 250). The random-baseline expectation for uniform sampling of the filtered HVG universe is ~0.25% per ranked gene, so a validation rate of 5% corresponds to roughly 20-fold enrichment over random. SFARI labels are used **only at evaluation time** — never during training, PCA fitting, or graph construction.
 
 ---
 
 ## Installation
 
+Requires Python with PyTorch and PyTorch Geometric.
+
 ```bash
-git clone https://github.com/NorahAwn/GeneGCN.git
-cd GeneGCN
-pip install -r requirements.txt
+pip install torch
+pip install torch_geometric
+pip install scanpy anndata scikit-learn scipy pandas numpy
 ```
 
-PyTorch Geometric requires PyTorch to be installed first; if `pip install -r requirements.txt` fails on the PyG line, follow the [PyG install guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) for your CUDA/PyTorch combination, then re-run.
-
-Tested on:
-- Linux + CUDA 11.8 + PyTorch 2.1 + PyG 2.4 + NVIDIA A100 (full benchmark, ~6 hours)
-- Windows 10 + CUDA 11.8 + PyTorch 2.1 + PyG 2.4 + NVIDIA RTX 3060 6 GB (per-cell-type runs work; ALL_CELLS needs `--max_cells 3000`)
+> Install the PyTorch / PyTorch Geometric builds that match your CUDA version. See the [PyTorch](https://pytorch.org/get-started/locally/) and [PyG](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) installation guides.
 
 ---
 
-## Quick start
+## Data setup
 
-### 1. Download the data
-
-The Velmeshev autism cortex cohort is available from the [UCSC Cell Browser](https://cells.ucsc.edu) (search "autism"). Download the three files and place them in `data/`:
+The scripts expect the Velmeshev snRNA-seq cortex cohort and a SFARI reference file. Default paths (editable in the config block of `model_per_celltype.py`):
 
 ```
-data/
-├── ASD_control.h5ad     # control cells, log-normalized
-├── ASD_patient.h5ad     # patient cells, log-normalized
-└── meta.tsv             # cell-level metadata with cell-type labels
+data/ASD_control.h5ad     # control cells (h5ad)
+data/ASD_patient.h5ad     # patient cells (h5ad)
+data/meta.tsv             # cell-type metadata; barcode col 'cell', cell-type col 'cluster'
+SFARI-Gene_genes.csv      # SFARI reference; symbol col 'gene-symbol'
 ```
 
-The SFARI Gene CSV is at [https://gene.sfari.org](https://gene.sfari.org) (login required, free). Download as `SFARI-Gene_genes.csv` and place at the repo root.
+- The Velmeshev cohort (104,559 nuclei; 15 ASD patients, 16 controls; prefrontal and anterior cingulate cortex) is publicly available from the original publication and the UCSC Cell Browser.
+- SFARI Gene is available at <https://gene.sfari.org>.
 
-See `data/README.md` for the exact column requirements.
+UMI counts are normalized to counts-per-million and `log1p`-transformed. XIST and Y-linked transcripts are removed by default to control for sex imbalance in the cohort.
 
-### 2. Run GeneGCN on a few cell types
+---
+
+## Usage
+
+### Per-cell-type GeneGCN pipeline
+
+Paths, cell types, and the `obs` column name are set in the CONFIG block at the top of the script:
 
 ```bash
-python cells_as_nodes.py \
-    --celltypes ALL_CELLS,IN-SST,Oligodendrocytes,L2_3 \
-    --seeds 5
+python model_per_celltype.py
 ```
 
-### 3. Run on all 18 cell-type contexts
+### Cell-graph model / benchmark (cells-as-nodes)
 
-```bash
-python cells_as_nodes.py --celltypes all --seeds 5
-```
-
-### 4. Run on a low-VRAM GPU (≤ 2 GB)
+Runs on a 2 GB GPU with cell subsampling:
 
 ```bash
 python cells_as_nodes.py --celltypes all --seeds 5 --max_cells 3000 --hidden 64
 ```
 
-Outputs land in `cellgcn_results/`:
+Arguments: `--celltypes` (comma-separated list or `all`), `--seeds`, `--max_cells`, `--hidden`, `--verbose`.
 
-| File | Contents |
-|---|---|
-| `cells_as_nodes_results.csv` | One row per (cell type × seed × ranking depth). |
-| `cells_as_nodes_summary.csv` | Mean ± SD across seeds. |
-| `cells_as_nodes_rankings.csv` | Top-250 ranked genes per cell type, with direction and SFARI annotation. |
-
----
-
-## Reproducing the manuscript benchmark
-
-The full ablation (GeneGCN cell-graph vs gene-graph vs MLP vs mean/std pool vs no-filter vs Wilcoxon) is in `run_ablations.py`.
+### Ablation benchmark
 
 ```bash
-# Step 1: gene-graph baselines (uses model_per_celltype.py)
 python run_ablations.py --celltypes all --seeds 5
-
-# Step 2: cell-graph (this paper's method)
-python cells_as_nodes.py --celltypes all --seeds 5
 ```
 
-The cell-graph script automatically merges its results with the prior ablation summary (if present) and prints a paired Wilcoxon signed-rank table for every method comparison.
+Arguments: `--celltypes`, `--seeds`, `--ablations` (comma-separated subset of `FULL,NO_GRAPH,MEAN_POOL,NO_FILTER,WILCOXON_FAIR`), `--out_dir`, `--max_cells`. Results are written as `ablation_results.csv`, `ablation_summary.csv`, and optionally `ablation_rankings.csv`.
+
+### Gene-symbol filter (standalone)
+
+```python
+from gene_filter import filter_artifact_genes, filter_report
+
+kept = filter_artifact_genes(list(adata.var_names))          # order-preserving
+report = filter_report(list(adata.var_names))                # {class: [removed symbols]}
+```
+
+A quick self-test runs on a representative sample of symbols with `python gene_filter.py`.
 
 ---
 
-## Repository structure
+## Results summary
 
-```
-GeneGCN/
-├── cells_as_nodes.py          # main method: cell-graph GCN (self-contained)
-├── gene_filter.py             # gene-symbol artifact filter
-├── model_per_celltype.py      # gene-graph baseline (for ablation reproducibility)
-├── run_ablations.py           # ablation driver
-├── requirements.txt
-├── LICENSE
-├── CITATION.cff
-├── README.md
-├── data/                      # snRNA-seq data (not tracked; see data/README.md)
-├── results/                   # example outputs from our benchmark run
-│   ├── cells_as_nodes_summary.csv
-│   ├── cells_as_nodes_rankings.csv
-│   └── ablation_summary.csv
-├── examples/
-│   └── quick_start.py         # minimal usage example
-└── docs/
-    └── PIPELINE.md            # step-by-step methodology
-```
+- Across 18 cell-type contexts, the cell-graph formulation reached a mean SFARI overlap of **4.60% at top-250** versus **2.11%** for the gene-graph variant — a 2.2-fold improvement — winning in 17 of 18 cell types (paired Wilcoxon p = 6.3 × 10⁻⁴).
+- The cell-graph GCN is statistically indistinguishable from a same-shape MLP (4.55%, p = 0.76) and from a Wilcoxon rank-sum test on the same filtered gene universe (4.13%, p = 0.15).
+- GeneGCN is the best-performing method in 8 of 18 contexts, notably oligodendrocytes (6.24%, the highest cell-type-specific score), astrocyte subpopulations, and inhibitory interneurons.
+- Removing the gene-symbol filter reduces mean SFARI overlap ~2.3-fold and raises top-50 artifact content from 0% to 56–80%.
 
----
-
-## Method summary
-
-**Inputs**: snRNA-seq counts, cell-type annotations, control/patient labels.
-
-**Pipeline** (per cell type):
-
-1. **Filter**: remove transcript-annotation artifacts (RP-, CTD-, AC-, AL-, MT-, small RNAs, pseudogenes, sex markers) via `gene_filter.py`. After filtering, artifact content in the top-50 ranked genes drops from 56–80% to 0%.
-2. **HVG**: select the top 3,000 highly-variable genes on the combined matrix.
-3. **PCA**: fit 50-component PCA on controls; project patients through the same basis.
-4. **kNN graph**: build a symmetric k=15 nearest-neighbor graph in PC space, separately for controls and patients. Edge weights w_ij = exp(−d_ij / median(d)).
-5. **GCN autoencoder**: train a two-layer GCN (hidden=64) on the control graph for 300 epochs to reconstruct each cell's expression vector.
-6. **RED scoring**: at inference, compute per-gene mean squared reconstruction error for control and patient cells separately; RED_g = e_g(patient) − e_g(control); rank by |RED_g|.
-7. **Direction**: assign Up/Down from the log2 fold-change on log1p(CPM) values.
-
-See `docs/PIPELINE.md` for the full mathematical specification.
+Recovered biology includes an oligodendrocyte myelination signature (down in patients), immediate-early gene activation in excitatory layers, an inflammatory chemokine/interleukin axis in glia, and SST-interneuron rankings containing known ASD risk genes.
 
 ---
 
 ## Citation
 
-If you use this code in your work, please cite:
+Awn N.S., Zhao M., Ba Mahel M.S.M., Bamahel A.S., Tang J. *GeneGCN: A graph convolutional network uncovers cell-type-specific gene perturbations and biomarkers in autism spectrum disorder.*
 
-```bibtex
-@article{Norah2026genegcn,
-  title={GeneGCN: A Graph Convolutional Network Uncovers Novel Cell-Type-Specific
-         Gene Perturbations and Biomarkers in Autism Spectrum Disorder},
-  author={Saeed Awn, Norah and Zhao, Mengyuan and Ba Mahel, Mansoor and Bamahel, Abdulaziz S.
-           and Tang, Jijun},
-  journal={Bioinformatics},
-  year={2026},
-  note={Submitted}
-}
-```
-
-A machine-readable version is in `CITATION.cff`.
-
----
-
-## Acknowledgements
-
-- Velmeshev et al. for the public snRNA-seq cortex cohort.
-- SFARI Gene for the curated ASD-risk gene reference.
-- The scanpy and PyTorch Geometric maintainers.
+Code archived at Zenodo: [10.5281/zenodo.21132225](https://doi.org/10.5281/zenodo.21132225).
 
 ---
 
 ## License
 
-MIT. See `LICENSE`.
+MIT License.
+
+---
+
+## Acknowledgements
+
+We thank the Velmeshev et al. group for making their snRNA-seq cortex dataset publicly available, and the SFARI Gene curators for maintaining the ASD-risk gene reference. This work was supported by the Shenzhen Science and Technology Program (grants JCYJ20241202130212016, KQTD20200820113106007, JCYJ20230807140709020).
